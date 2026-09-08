@@ -10,6 +10,10 @@ End-user manual for v2. For development notes, see `CONTRIBUTING.md`.
 - Community plugins enabled for the vault (Settings → Community plugins →
   *Turn on community plugins*; trust the author on first open).
 
+Follow the [installation steps](../README.md#install) to set up both apps.
+Flashcards 2.0.1 and later work with AnkiConnect's default settings. You do not
+need to add `app://obsidian.md` to `webCorsOriginList`.
+
 The first sync auto-creates Anki note types (`Obsidian-basic`,
 `Obsidian-basic-reversed`, `Obsidian-cloze`, `Obsidian-reminder`) and any decks
 it needs.
@@ -25,7 +29,7 @@ From the command palette (`Cmd/Ctrl+P`):
 - **Flashcards: Apply v2 Anki card style** — previews and backs up existing
   managed Anki models, then installs the v2 design after confirmation.
 
-Sync is idempotent: re-running it does not duplicate unchanged cards.
+Running an update again does not duplicate unchanged cards.
 
 The first vault sync reads every Markdown note. It records which notes contain
 no cards in a disposable `vault-scan-index.json` file inside the plugin folder.
@@ -290,8 +294,8 @@ plugin folder (resets all plugin state).
 ## Troubleshooting
 
 **Sync fails — AnkiConnect not reachable.**
-Start Anki. Confirm the AnkiConnect add-on is installed, restart Anki, and open
-<http://127.0.0.1:8765> in a browser. It should show `Anki-Connect`.
+Update Flashcards to 2.0.1 or later and restart Obsidian. Then follow the
+[connection checks](../README.md#ankiconnect-connection-problems).
 
 **"Note was not found: 12345…" warnings.**
 The `flashcards:` map has an entry whose `nid` no longer exists in Anki

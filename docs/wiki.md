@@ -1,7 +1,7 @@
 # Flashcards v2 wiki
 
-This page explains how to write cards, what the plugin owns, and how unusual
-cases are handled. It uses simple technical English. See
+This page explains how to write cards, what the plugin updates, and how unusual
+cases are handled. See
 [`USAGE.md`](USAGE.md) for setup and detailed update behavior.
 
 ## Product rule
@@ -79,25 +79,21 @@ index is never used as card identity.
 - Anki running with the AnkiConnect add-on.
 - Community plugins enabled in the Obsidian vault.
 
-The default AnkiConnect endpoint is `http://127.0.0.1:8765`.
+Follow the [installation steps](../README.md#install) to set up both apps.
+Flashcards 2.0.1 and later work with AnkiConnect's default settings. You do not
+need to add `app://obsidian.md` to `webCorsOriginList`.
 
-After installing AnkiConnect, restart Anki and keep Anki open while updating
-cards. To check the connection, open <http://127.0.0.1:8765> in a browser. The
-page should show `Anki-Connect`.
+The default AnkiConnect address is `http://127.0.0.1:8765`. Keep Anki open while
+updating cards.
 
 If AnkiConnect requires an API key, open the Flashcards settings and select an
-Obsidian secret under **AnkiConnect API key**. The plugin stores only the
-secret name in its data. Obsidian stores the key in `SecretStorage`. The
-default is no API key.
+Obsidian secret containing that key under **AnkiConnect API key**. Leave this
+setting empty if you have not set a key in AnkiConnect.
 
 ### AnkiConnect connection problems
 
-If an update says that AnkiConnect cannot be reached:
-
-1. Confirm that Anki Desktop is open.
-2. Confirm that AnkiConnect appears under **Anki → Tools → Add-ons**.
-3. Restart Anki after installing or changing AnkiConnect.
-4. Check <http://127.0.0.1:8765> in a browser.
+Update Flashcards to 2.0.1 or later and restart Obsidian. Then follow the
+[connection checks](../README.md#ankiconnect-connection-problems).
 
 ## Card syntax
 
