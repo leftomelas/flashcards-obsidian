@@ -99,3 +99,49 @@ describe("mergeSettings back-compat (pre-rename keys)", () => {
     expect(merged.hashtag).toEqual({ enabled: true, basicTag: "new" });
   });
 });
+
+describe("ankiLaunch settings", () => {
+  test("defaults: auto-launch on, no explicit command, 60s wait", () => {
+    expect(DEFAULT_SETTINGS.ankiLaunch).toEqual({
+      enabled: true,
+      command: "",
+      waitSeconds: 60,
+    });
+  });
+
+  test("settings saved before this feature existed keep the defaults", () => {
+    expect(mergeSettings({ defaultDeck: "Inbox" }).ankiLaunch).toEqual(
+      DEFAULT_SETTINGS.ankiLaunch,
+    );
+  });
+
+  test("a partial ankiLaunch object merges field by field", () => {
+    const merged = mergeSettings({ ankiLaunch: { command: "anki" } });
+    expect(merged.ankiLaunch).toEqual({
+      enabled: true,
+      command: "anki",
+      waitSeconds: 60,
+    });
+  });
+
+  test("waitSeconds is clamped into the supported range", () => {
+    expect(
+      mergeSettings({ ankiLaunch: { waitSeconds: 0 } }).ankiLaunch.waitSeconds,
+    ).toBe(5);
+    expect(
+      mergeSettings({ ankiLaunch: { waitSeconds: 99999 } }).ankiLaunch
+        .waitSeconds,
+    ).toBe(300);
+    expect(
+      mergeSettings({ ankiLaunch: { waitSeconds: 12.4 } }).ankiLaunch
+        .waitSeconds,
+    ).toBe(12);
+  });
+
+  test("non-numeric waitSeconds falls back to the default", () => {
+    expect(
+      mergeSettings({ ankiLaunch: { waitSeconds: "soon" } } as unknown)
+        .ankiLaunch.waitSeconds,
+    ).toBe(60);
+  });
+});

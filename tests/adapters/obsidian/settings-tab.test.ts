@@ -4,10 +4,15 @@ import { DEFAULT_SETTINGS } from "../../../src/core/config/settings.js";
 import type { PluginHost } from "../../../src/adapters/obsidian/plugin-host.js";
 
 vi.mock("obsidian", () => ({
+  Notice: class {},
   PluginSettingTab: class {
     constructor(_app: unknown, _plugin: unknown) {}
   },
   SecretComponent: class {},
+}));
+vi.mock("../../../src/adapters/obsidian/anki-launcher.js", () => ({
+  detectAnkiCommand: () => "/usr/local/bin/anki",
+  launchAnkiCommand: vi.fn(),
 }));
 
 import { FlashcardsSettingTab } from "../../../src/adapters/obsidian/settings-tab.js";
@@ -100,8 +105,45 @@ describe("FlashcardsSettingTab", () => {
               defaultValue: false,
             }),
           }),
+        ]),
+      }),
+      expect.objectContaining({
+        type: "group",
+        heading: "Anki connection",
+        items: expect.arrayContaining([
           expect.objectContaining({
             name: "AnkiConnect API key",
+            render: expect.any(Function),
+          }),
+          expect.objectContaining({
+            name: "Start Anki automatically",
+            control: expect.objectContaining({
+              type: "toggle",
+              key: "ankiLaunch.enabled",
+              defaultValue: true,
+            }),
+          }),
+          expect.objectContaining({
+            name: "Anki launch command",
+            control: expect.objectContaining({
+              type: "text",
+              key: "ankiLaunch.command",
+              defaultValue: "",
+              placeholder: "/usr/local/bin/anki",
+            }),
+          }),
+          expect.objectContaining({
+            name: "Wait for Anki",
+            control: expect.objectContaining({
+              type: "number",
+              key: "ankiLaunch.waitSeconds",
+              defaultValue: 60,
+              min: 5,
+              max: 300,
+            }),
+          }),
+          expect.objectContaining({
+            name: "Test connection",
             render: expect.any(Function),
           }),
         ]),
@@ -161,6 +203,37 @@ describe("FlashcardsSettingTab", () => {
     expect(host.updateSettings).toHaveBeenCalledTimes(9);
   });
 
+  it("round-trips the Anki launch settings", async () => {
+    await tab.setControlValue("ankiLaunch.enabled", false);
+    await tab.setControlValue("ankiLaunch.command", "  flatpak run Anki  ");
+    await tab.setControlValue("ankiLaunch.waitSeconds", 90);
+
+    expect(host.settings.ankiLaunch).toEqual({
+      enabled: false,
+      command: "flatpak run Anki",
+      waitSeconds: 90,
+    });
+    expect(tab.getControlValue("ankiLaunch.enabled")).toBe(false);
+    expect(tab.getControlValue("ankiLaunch.command")).toBe("flatpak run Anki");
+    expect(tab.getControlValue("ankiLaunch.waitSeconds")).toBe(90);
+  });
+
+  it("rejects a wait outside the supported range", async () => {
+    await tab.setControlValue("ankiLaunch.waitSeconds", 0);
+    await tab.setControlValue("ankiLaunch.waitSeconds", 10_000);
+
+    expect(host.updateSettings).not.toHaveBeenCalled();
+    expect(host.settings.ankiLaunch.waitSeconds).toBe(60);
+  });
+
+  it("hides the launch command when auto-launch is off", () => {
+    const launchCommand = findSetting(tab, "Anki launch command");
+    expect(evaluateVisible(launchCommand)).toBe(true);
+
+    host.settings.ankiLaunch.enabled = false;
+    expect(evaluateVisible(findSetting(tab, "Anki launch command"))).toBe(false);
+  });
+
   it("ignores values that do not match the control type", async () => {
     await tab.setControlValue("defaultDeck", "   ");
     await tab.setControlValue("contextStrategy", "invalid");
@@ -169,3 +242,25 @@ describe("FlashcardsSettingTab", () => {
     expect(host.updateSettings).not.toHaveBeenCalled();
   });
 });
+
+interface NamedSetting {
+  name: string;
+  visible?: boolean | (() => boolean);
+}
+
+function findSetting(
+  tab: FlashcardsSettingTab,
+  name: string,
+): NamedSetting | undefined {
+  for (const group of tab.getSettingDefinitions()) {
+    const items = (group as { items?: NamedSetting[] }).items ?? [];
+    const match = items.find((item) => item.name === name);
+    if (match) return match;
+  }
+  return undefined;
+}
+
+function evaluateVisible(setting: NamedSetting | undefined): boolean {
+  const visible = setting?.visible;
+  return typeof visible === "function" ? visible() : (visible ?? true);
+}

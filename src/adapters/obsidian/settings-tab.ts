@@ -1,4 +1,5 @@
 import {
+  Notice,
   PluginSettingTab,
   SecretComponent,
   type SettingDefinitionItem,
@@ -6,11 +7,18 @@ import {
 
 import {
   DEFAULT_SETTINGS,
+  MAX_ANKI_WAIT_SECONDS,
+  MIN_ANKI_WAIT_SECONDS,
   type ContextStrategy,
 } from "../../core/config/settings.js";
+import { testAnkiConnection } from "./anki-availability.js";
+import { detectAnkiCommand } from "./anki-launcher.js";
 import type { PluginHost } from "./plugin-host.js";
 
 type SettingsKey =
+  | "ankiLaunch.command"
+  | "ankiLaunch.enabled"
+  | "ankiLaunch.waitSeconds"
   | "confirmBeforeDelete"
   | "contextSeparator"
   | "contextStrategy"
@@ -142,6 +150,12 @@ export class FlashcardsSettingTab extends PluginSettingTab {
               defaultValue: DEFAULT_SETTINGS.highlightCloze.enabled,
             },
           },
+        ],
+      },
+      {
+        type: "group",
+        heading: "Anki connection",
+        items: [
           {
             name: "AnkiConnect API key",
             desc: "Optional. Select a secret stored by Obsidian. Default: none.",
@@ -154,6 +168,59 @@ export class FlashcardsSettingTab extends PluginSettingTab {
                       ankiConnectApiKeySecret: value,
                     }),
                   ),
+              );
+            },
+          },
+          {
+            name: "Start Anki automatically",
+            desc: "When Anki is closed, start it and continue the sync once it responds. Default: on.",
+            control: {
+              type: "toggle",
+              key: "ankiLaunch.enabled",
+              defaultValue: DEFAULT_SETTINGS.ankiLaunch.enabled,
+            },
+          },
+          {
+            name: "Anki launch command",
+            desc: "Leave empty to detect a standard install. Set it for a custom location, an AppImage, or flatpak (flatpak run net.ankiweb.Anki). Quote paths containing spaces.",
+            visible: () => this.plugin.settings.ankiLaunch.enabled,
+            control: {
+              type: "text",
+              key: "ankiLaunch.command",
+              defaultValue: DEFAULT_SETTINGS.ankiLaunch.command,
+              placeholder: detectAnkiCommand() ?? "No Anki install detected",
+            },
+          },
+          {
+            name: "Wait for Anki",
+            desc: `Seconds a sync waits for AnkiConnect before giving up. Default: ${DEFAULT_SETTINGS.ankiLaunch.waitSeconds}.`,
+            control: {
+              type: "number",
+              key: "ankiLaunch.waitSeconds",
+              defaultValue: DEFAULT_SETTINGS.ankiLaunch.waitSeconds,
+              min: MIN_ANKI_WAIT_SECONDS,
+              max: MAX_ANKI_WAIT_SECONDS,
+              validate: (value) =>
+                value >= MIN_ANKI_WAIT_SECONDS && value <= MAX_ANKI_WAIT_SECONDS
+                  ? undefined
+                  : `Enter ${MIN_ANKI_WAIT_SECONDS}–${MAX_ANKI_WAIT_SECONDS} seconds.`,
+            },
+          },
+          {
+            name: "Test connection",
+            desc: "Check that AnkiConnect answers, starting Anki first if needed.",
+            render: (setting) => {
+              setting.addButton((button) =>
+                button.setButtonText("Test").onClick(() => {
+                  button.setDisabled(true);
+                  void testAnkiConnection(this.plugin)
+                    .then((message) => {
+                      new Notice(message);
+                    })
+                    .finally(() => {
+                      button.setDisabled(false);
+                    });
+                }),
               );
             },
           },
@@ -216,6 +283,12 @@ export class FlashcardsSettingTab extends PluginSettingTab {
 
   override getControlValue(key: SettingsKey): unknown {
     switch (key) {
+      case "ankiLaunch.command":
+        return this.plugin.settings.ankiLaunch.command;
+      case "ankiLaunch.enabled":
+        return this.plugin.settings.ankiLaunch.enabled;
+      case "ankiLaunch.waitSeconds":
+        return this.plugin.settings.ankiLaunch.waitSeconds;
       case "confirmBeforeDelete":
       case "contextSeparator":
       case "contextStrategy":
@@ -247,6 +320,26 @@ export class FlashcardsSettingTab extends PluginSettingTab {
     value: unknown,
   ): Promise<void> {
     switch (key) {
+      case "ankiLaunch.enabled":
+        if (typeof value === "boolean") {
+          await this.updateAnkiLaunch({ enabled: value });
+        }
+        return;
+      case "ankiLaunch.command":
+        if (typeof value === "string") {
+          await this.updateAnkiLaunch({ command: value.trim() });
+        }
+        return;
+      case "ankiLaunch.waitSeconds":
+        if (
+          typeof value === "number" &&
+          Number.isFinite(value) &&
+          value >= MIN_ANKI_WAIT_SECONDS &&
+          value <= MAX_ANKI_WAIT_SECONDS
+        ) {
+          await this.updateAnkiLaunch({ waitSeconds: Math.round(value) });
+        }
+        return;
       case "defaultDeck":
         if (typeof value === "string" && value.trim()) {
           await this.plugin.updateSettings({ defaultDeck: value.trim() });
@@ -315,6 +408,14 @@ export class FlashcardsSettingTab extends PluginSettingTab {
       case "renderPreview.inlineSeparator":
         return this.updateRenderPreviewFeature("inlineSeparator", value);
     }
+  }
+
+  private async updateAnkiLaunch(
+    next: Partial<PluginHost["settings"]["ankiLaunch"]>,
+  ): Promise<void> {
+    await this.plugin.updateSettings({
+      ankiLaunch: { ...this.plugin.settings.ankiLaunch, ...next },
+    });
   }
 
   private async updateRenderPreviewFeature(

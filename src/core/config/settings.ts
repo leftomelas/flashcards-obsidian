@@ -11,6 +11,18 @@ export interface SyntaxToggleSettings {
   enabled: boolean;
 }
 
+export interface AnkiLaunchSettings {
+  /** Start Anki automatically when AnkiConnect does not answer. */
+  enabled: boolean;
+  /** Empty means "detect a known install location at launch time". */
+  command: string;
+  /** How long a sync waits for AnkiConnect before giving up. */
+  waitSeconds: number;
+}
+
+export const MIN_ANKI_WAIT_SECONDS = 5;
+export const MAX_ANKI_WAIT_SECONDS = 300;
+
 export interface RenderPreviewSettings {
   enabled: boolean;
   features: {
@@ -24,6 +36,7 @@ export interface RenderPreviewSettings {
 export interface FlashcardsSettings {
   /** Name of an Obsidian SecretStorage entry, never the secret value itself. */
   ankiConnectApiKeySecret: string;
+  ankiLaunch: AnkiLaunchSettings;
   atomic: SyntaxToggleSettings;
   cloze: SyntaxToggleSettings;
   confirmBeforeDelete: boolean;
@@ -51,6 +64,7 @@ export interface FlashcardsSettings {
 
 export const DEFAULT_SETTINGS: FlashcardsSettings = {
   ankiConnectApiKeySecret: "",
+  ankiLaunch: { enabled: true, command: "", waitSeconds: 60 },
   atomic: { enabled: true },
   cloze: { enabled: true },
   confirmBeforeDelete: true,
@@ -151,6 +165,7 @@ export function mergeSettings(
   return {
     ...defaults,
     ...mergedCandidate,
+    ankiLaunch: mergeAnkiLaunch(defaults.ankiLaunch, candidate.ankiLaunch),
     atomic: mergeSyntaxToggle(defaults.atomic, candidate.atomic),
     cloze: mergeSyntaxToggle(defaults.cloze, candidate.cloze),
     defaultTags: Array.isArray(candidate.defaultTags)
@@ -181,6 +196,36 @@ export function mergeSettings(
       },
     },
   };
+}
+
+/**
+ * Values persisted by an older build (or hand-edited) are clamped rather than
+ * rejected: a nonsensical wait would otherwise hang a sync for hours.
+ */
+function mergeAnkiLaunch(
+  defaults: AnkiLaunchSettings,
+  candidate: Partial<AnkiLaunchSettings> | undefined,
+): AnkiLaunchSettings {
+  if (!candidate || typeof candidate !== "object") return defaults;
+  return {
+    enabled:
+      typeof candidate.enabled === "boolean"
+        ? candidate.enabled
+        : defaults.enabled,
+    command:
+      typeof candidate.command === "string"
+        ? candidate.command
+        : defaults.command,
+    waitSeconds: clampWaitSeconds(candidate.waitSeconds, defaults.waitSeconds),
+  };
+}
+
+function clampWaitSeconds(value: unknown, fallback: number): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
+  return Math.min(
+    MAX_ANKI_WAIT_SECONDS,
+    Math.max(MIN_ANKI_WAIT_SECONDS, Math.round(value)),
+  );
 }
 
 function mergeSyntaxToggle(

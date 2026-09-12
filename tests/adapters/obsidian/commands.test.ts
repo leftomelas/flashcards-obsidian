@@ -9,6 +9,9 @@ const mocks = vi.hoisted(() => ({
   >(async () => []),
   notices: [] as Array<{ hide: ReturnType<typeof vi.fn>; message: string }>,
   ankiClientOptions: [] as unknown[],
+  ankiVersion: vi.fn(async () => 6),
+  detectAnkiCommand: vi.fn((): string | null => null),
+  launchAnkiCommand: vi.fn(async (_command: string) => {}),
   repairManagedSourceTemplates: vi.fn(async () => ({
     modelsUpdated: 0,
     templatesUpdated: 0,
@@ -25,6 +28,8 @@ vi.mock("obsidian", () => ({
   Notice: class {
     hide = vi.fn();
     message: string;
+    // `notifyWaiting` attaches the cancel handler here.
+    noticeEl = { addEventListener: vi.fn() };
 
     constructor(message: string) {
       this.message = message;
@@ -35,10 +40,16 @@ vi.mock("obsidian", () => ({
 
 vi.mock("../../../src/adapters/anki/anki-connect-client.js", () => ({
   AnkiConnectClient: class {
+    version = mocks.ankiVersion;
+
     constructor(options: unknown) {
       mocks.ankiClientOptions.push(options);
     }
   },
+}));
+vi.mock("../../../src/adapters/obsidian/anki-launcher.js", () => ({
+  detectAnkiCommand: mocks.detectAnkiCommand,
+  launchAnkiCommand: mocks.launchAnkiCommand,
 }));
 vi.mock("../../../src/adapters/anki/upload-media.js", () => ({
   uploadMedia: vi.fn(),
@@ -106,7 +117,7 @@ interface RegisteredCommand {
 function createHost() {
   const commands: RegisteredCommand[] = [];
   const refreshStatusBars = vi.fn();
-  const logger = { error: vi.fn() };
+  const logger = { error: vi.fn(), warn: vi.fn() };
   const host = {
     addCommand(command: RegisteredCommand) {
       commands.push(command);
@@ -180,6 +191,12 @@ describe("Obsidian sync commands", () => {
       templatesUpdated: 0,
     });
     mocks.ankiClientOptions.length = 0;
+    mocks.ankiVersion.mockReset();
+    mocks.ankiVersion.mockResolvedValue(6);
+    mocks.detectAnkiCommand.mockReset();
+    mocks.detectAnkiCommand.mockReturnValue(null);
+    mocks.launchAnkiCommand.mockReset();
+    mocks.launchAnkiCommand.mockResolvedValue(undefined);
     mocks.syntaxMigrationModals.length = 0;
     mocks.syncNote.mockReset();
     mocks.inspectManagedModelStyle.mockReset();
@@ -388,6 +405,188 @@ describe("Obsidian sync commands", () => {
       error: "Anki is offline",
       target: "current",
     });
+  });
+});
+
+describe("Anki availability gate", () => {
+  beforeEach(() => {
+    mocks.notices.length = 0;
+    mocks.getActiveNote.mockReset();
+    mocks.getActiveNote.mockResolvedValue(null);
+    mocks.repairManagedSourceTemplates.mockClear();
+    mocks.repairManagedSourceTemplates.mockResolvedValue({
+      modelsUpdated: 0,
+      templatesUpdated: 0,
+    });
+    mocks.ankiVersion.mockReset();
+    mocks.ankiVersion.mockResolvedValue(6);
+    mocks.detectAnkiCommand.mockReset();
+    mocks.detectAnkiCommand.mockReturnValue(null);
+    mocks.launchAnkiCommand.mockReset();
+    mocks.launchAnkiCommand.mockResolvedValue(undefined);
+    mocks.inspectManagedModelStyle.mockReset();
+    mocks.inspectManagedModelStyle.mockResolvedValue({
+      blocked: [],
+      changes: [],
+    });
+  });
+
+  it("syncs straight through when AnkiConnect already answers", async () => {
+    const { current } = createHost();
+
+    current.checkCallback?.(false);
+
+    await vi.waitFor(() =>
+      expect(mocks.repairManagedSourceTemplates).toHaveBeenCalledOnce(),
+    );
+    expect(mocks.launchAnkiCommand).not.toHaveBeenCalled();
+    expect(mocks.notices).toHaveLength(1);
+    expect(mocks.notices[0]?.message).toBe("No active markdown note.");
+  });
+
+  it("starts Anki with the detected command and continues once it answers", async () => {
+    vi.useFakeTimers();
+    try {
+      mocks.detectAnkiCommand.mockReturnValue("anki");
+      mocks.ankiVersion
+        .mockRejectedValueOnce(new Error("ECONNREFUSED"))
+        .mockResolvedValue(6);
+      const { current } = createHost();
+
+      current.checkCallback?.(false);
+      await vi.advanceTimersByTimeAsync(1000);
+
+      expect(mocks.launchAnkiCommand).toHaveBeenCalledWith("anki");
+      expect(mocks.notices[0]?.message).toContain("Starting Anki");
+      expect(mocks.repairManagedSourceTemplates).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("prefers an explicitly configured launch command over detection", async () => {
+    vi.useFakeTimers();
+    try {
+      mocks.detectAnkiCommand.mockReturnValue("anki");
+      mocks.ankiVersion
+        .mockRejectedValueOnce(new Error("ECONNREFUSED"))
+        .mockResolvedValue(6);
+      const { current, host } = createHost();
+      host.settings.ankiLaunch = {
+        enabled: true,
+        command: "  flatpak run net.ankiweb.Anki  ",
+        waitSeconds: 5,
+      };
+
+      current.checkCallback?.(false);
+      await vi.advanceTimersByTimeAsync(1000);
+
+      expect(mocks.detectAnkiCommand).not.toHaveBeenCalled();
+      expect(mocks.launchAnkiCommand).toHaveBeenCalledWith(
+        "flatpak run net.ankiweb.Anki",
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("waits without launching when auto-launch is off", async () => {
+    vi.useFakeTimers();
+    try {
+      mocks.detectAnkiCommand.mockReturnValue("anki");
+      mocks.ankiVersion
+        .mockRejectedValueOnce(new Error("ECONNREFUSED"))
+        .mockResolvedValue(6);
+      const { current, host } = createHost();
+      host.settings.ankiLaunch = {
+        enabled: false,
+        command: "",
+        waitSeconds: 5,
+      };
+
+      current.checkCallback?.(false);
+      await vi.advanceTimersByTimeAsync(1000);
+
+      expect(mocks.launchAnkiCommand).not.toHaveBeenCalled();
+      expect(mocks.notices[0]?.message).toContain("Anki is not running");
+      expect(mocks.repairManagedSourceTemplates).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("aborts before touching the vault when Anki never answers", async () => {
+    vi.useFakeTimers();
+    try {
+      mocks.ankiVersion.mockRejectedValue(new Error("ECONNREFUSED"));
+      const { current, host, logger } = createHost();
+      host.settings.ankiLaunch = {
+        enabled: false,
+        command: "",
+        waitSeconds: 2,
+      };
+
+      current.checkCallback?.(false);
+      await vi.advanceTimersByTimeAsync(2000);
+
+      expect(mocks.repairManagedSourceTemplates).not.toHaveBeenCalled();
+      expect(mocks.getActiveNote).not.toHaveBeenCalled();
+      expect(mocks.notices.at(-1)?.message).toContain(
+        "Anki did not respond within 2s",
+      );
+      expect(logger.warn).toHaveBeenCalledWith(
+        "Anki unavailable",
+        expect.objectContaining({ waitSeconds: 2 }),
+      );
+      expect(host.syncInFlight).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("reports why the launch failed when Anki still does not answer", async () => {
+    vi.useFakeTimers();
+    try {
+      mocks.detectAnkiCommand.mockReturnValue("anki");
+      mocks.ankiVersion.mockRejectedValue(new Error("ECONNREFUSED"));
+      mocks.launchAnkiCommand.mockRejectedValue(new Error("spawn ENOENT"));
+      const { current, host } = createHost();
+      host.settings.ankiLaunch = {
+        enabled: true,
+        command: "",
+        waitSeconds: 1,
+      };
+
+      current.checkCallback?.(false);
+      await vi.advanceTimersByTimeAsync(1000);
+
+      expect(mocks.notices.at(-1)?.message).toContain(
+        "Could not start Anki: spawn ENOENT",
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("gates the Anki style command too", async () => {
+    vi.useFakeTimers();
+    try {
+      mocks.ankiVersion.mockRejectedValue(new Error("ECONNREFUSED"));
+      const { ankiStyle, host } = createHost();
+      host.settings.ankiLaunch = {
+        enabled: false,
+        command: "",
+        waitSeconds: 1,
+      };
+
+      ankiStyle.callback?.();
+      await vi.advanceTimersByTimeAsync(1000);
+
+      expect(mocks.inspectManagedModelStyle).not.toHaveBeenCalled();
+      expect(host.syncInFlight).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

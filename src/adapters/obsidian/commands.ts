@@ -1,7 +1,11 @@
 import { Notice } from "obsidian";
 
 import type { PluginHost } from "./plugin-host.js";
-import { AnkiConnectClient } from "../anki/anki-connect-client.js";
+import type { AnkiConnectClient } from "../anki/anki-connect-client.js";
+import {
+  createAnkiClient,
+  ensureAnkiAvailable,
+} from "./anki-availability.js";
 import { repairManagedSourceTemplates } from "../anki/repair-managed-source-templates.js";
 import {
   applyManagedModelStyle,
@@ -16,7 +20,6 @@ import { createKindRecreationConfirmer } from "./kind-recreation-confirm-modal.j
 import { createAnkiStyleConfirmer } from "./anki-style-confirm-modal.js";
 import { writeAnkiStyleBackup } from "./anki-style-backup.js";
 import { prepareIncrementalVaultSync } from "./incremental-vault-sync.js";
-import { obsidianAnkiConnectTransport } from "./anki-connect-transport.js";
 import { buildMediaRewriteMap, resolveMedia } from "./media-resolver.js";
 import { createWikilinkResolver } from "./wikilink-resolver.js";
 import { backfillV1Vault } from "../../application/backfill-v1-vault.js";
@@ -98,6 +101,7 @@ async function runAnkiStyleMigration(plugin: PluginHost): Promise<void> {
   let stage: "apply" | "backup" | "inspect" = "inspect";
   try {
     const ankiClient = createAnkiClient(plugin);
+    if (!(await ensureAnkiAvailable(plugin, ankiClient))) return;
     const plan = await inspectManagedModelStyle(ankiClient);
     if (plan.changes.length === 0) {
       if (plan.blocked.length === 0) {
@@ -148,17 +152,6 @@ async function runAnkiStyleMigration(plugin: PluginHost): Promise<void> {
     plugin.syncInFlight = false;
     plugin.refreshStatusBars();
   }
-}
-
-function createAnkiClient(plugin: PluginHost): AnkiConnectClient {
-  const secretName = plugin.settings.ankiConnectApiKeySecret;
-  const apiKey = secretName
-    ? (plugin.app.secretStorage.getSecret(secretName) ?? undefined)
-    : undefined;
-  return new AnkiConnectClient({
-    ...(apiKey ? { apiKey } : {}),
-    transport: obsidianAnkiConnectTransport,
-  });
 }
 
 async function showSyntaxMigrationReport(plugin: PluginHost): Promise<void> {
@@ -310,6 +303,8 @@ async function dispatch(
   vaultName: string,
   target: Target,
 ): Promise<void> {
+  if (!(await ensureAnkiAvailable(plugin, ankiClient))) return;
+
   const resolveLink = createWikilinkResolver(plugin.app.metadataCache);
   const mediaPipeline = createMediaPipeline(plugin, ankiClient);
   const confirmDeletions = plugin.settings.confirmBeforeDelete

@@ -29,7 +29,8 @@ Anki, the next update restores the content from Obsidian.
 - Obsidian 1.13.0 or newer.
 - The desktop version of Anki.
 - The [AnkiConnect add-on](https://ankiweb.net/shared/info/2055492159).
-- Anki must be running when you update cards.
+- Anki running when you update cards. If it is closed, Flashcards starts it for
+  you and waits — see [Starting Anki](#starting-anki).
 
 ## Install
 
@@ -38,13 +39,37 @@ Anki, the next update restores the content from Obsidian.
 3. Enable **Flashcards**.
 4. In Anki, open **Tools → Add-ons → Get Add-ons**.
 5. Enter the AnkiConnect code `2055492159` and restart Anki.
-6. Keep Anki open while updating cards from Obsidian.
+6. Keep Anki open while updating cards from Obsidian, or let Flashcards start
+   it for you.
 
 Flashcards 2.0.1 and later work with AnkiConnect's default settings. You do not
 need to add `app://obsidian.md` to `webCorsOriginList`.
 
 AnkiConnect uses `http://127.0.0.1:8765` by default. If you set an AnkiConnect
 API key, select the secret containing that key in the Flashcards settings.
+
+### Starting Anki
+
+If Anki is closed when you update cards, Flashcards starts it and continues the
+update as soon as AnkiConnect answers — no need to re-run the command. Click the
+waiting notice to cancel.
+
+Settings live under **Anki connection**:
+
+- **Start Anki automatically** — on by default. Turn it off to be prompted to
+  start Anki yourself instead; the update still resumes once Anki is up.
+- **Anki launch command** — leave empty to use the standard install location
+  (`/Applications/Anki.app` on macOS, `%LOCALAPPDATA%\Programs\Anki\anki.exe`
+  on Windows, `anki` on `PATH` or the flatpak export on Linux). Set it for an
+  AppImage, a custom prefix, or flatpak (`flatpak run net.ankiweb.Anki`). Quote
+  paths containing spaces.
+- **Wait for Anki** — how long an update waits before giving up. Default 60s.
+- **Test** — checks the connection, starting Anki if needed, and reports what
+  happened. Use it after changing the launch command.
+
+A profile password prompt or Anki's own AnkiWeb sync dialog holds AnkiConnect
+back until you dismiss it; if that takes longer than the wait, run the command
+again once Anki is ready.
 
 ### AnkiConnect connection problems
 

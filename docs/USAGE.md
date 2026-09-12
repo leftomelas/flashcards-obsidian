@@ -280,6 +280,9 @@ plugin folder (resets all plugin state).
 | `explicitSyntax` | `fenced` | Fenced-block code label. |
 | `hashtag.enabled` | `true` | Recognise hashtag (`#card`) syntax. |
 | `hashtag.basicTag` | `card` | The hashtag used for basic cards (also matches `<basic>-reverse` and `<basic>/reverse`). |
+| `ankiLaunch.enabled` | `true` | Start Anki when AnkiConnect does not answer, then resume the update. |
+| `ankiLaunch.command` | `""` | Launch command. Empty means "detect a standard install". |
+| `ankiLaunch.waitSeconds` | `60` | How long an update waits for AnkiConnect (5–300). |
 | `logLevel` | `info` | `debug` \| `info` \| `warn` \| `error`. |
 | `logToFile` | `true` | Append sync events to `sync.log` in the plugin folder. |
 
@@ -294,8 +297,17 @@ plugin folder (resets all plugin state).
 ## Troubleshooting
 
 **Sync fails — AnkiConnect not reachable.**
-Update Flashcards to 2.0.1 or later and restart Obsidian. Then follow the
+Flashcards starts Anki for you and waits up to `ankiLaunch.waitSeconds`. If it
+still times out, use **Settings → Anki connection → Test** to see whether the
+launch command or AnkiConnect is at fault, then follow the
 [connection checks](../README.md#ankiconnect-connection-problems).
+
+**Anki starts but the update still times out.**
+Anki does not answer while a profile password prompt or its AnkiWeb sync dialog
+is open. Dismiss it and run the command again, or raise `ankiLaunch.waitSeconds`.
+
+**Anki is installed somewhere unusual (AppImage, flatpak, custom prefix).**
+Set **Anki launch command** in settings and confirm it with **Test**.
 
 **"Note was not found: 12345…" warnings.**
 The `flashcards:` map has an entry whose `nid` no longer exists in Anki
