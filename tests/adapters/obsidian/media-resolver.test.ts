@@ -129,6 +129,7 @@ describe("resolveMedia", () => {
       ["a.ogg", "audio/ogg"],
       ["a.m4a", "audio/mp4"],
       ["a.flac", "audio/flac"],
+      ["a.opus", "audio/ogg"],
     ];
     const bytesByPath: Record<string, Uint8Array> = {};
     for (const [name] of cases) bytesByPath[name] = PNG;
@@ -136,7 +137,7 @@ describe("resolveMedia", () => {
     const refs = cases.map(([name]) =>
       ref(name, name.endsWith(".mp3") || name.endsWith(".wav") ||
         name.endsWith(".ogg") || name.endsWith(".m4a") ||
-        name.endsWith(".flac") ? "audio" : "image"),
+        name.endsWith(".flac") || name.endsWith(".opus") ? "audio" : "image"),
     );
     const result = await resolveMedia(app, "n.md", refs);
     for (const [name, mime] of cases) {

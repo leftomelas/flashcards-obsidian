@@ -93,6 +93,12 @@ describe("extractMedia", () => {
     });
   });
 
+  it("extracts an opus audio ref", () => {
+    const refs = extractMedia("![[a.opus]]");
+    expect(refs).toHaveLength(1);
+    expect(refs[0]).toMatchObject({ kind: "audio", filename: "a.opus" });
+  });
+
   it("ignores wikilinks with unknown extensions", () => {
     expect(extractMedia("![[notes.txt]]")).toEqual([]);
   });

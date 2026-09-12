@@ -30,6 +30,8 @@ const AUDIO_EXTS = new Set([
   "ogg",
   "3gp",
   "flac",
+  // Not in Obsidian's embed list, but Anki plays it via mpv.
+  "opus",
 ]);
 
 interface ExcludedRange {

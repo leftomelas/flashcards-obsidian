@@ -38,6 +38,8 @@ const MIME_BY_EXT: Record<string, string> = {
   ogg: "audio/ogg",
   "3gp": "audio/3gpp",
   flac: "audio/flac",
+  // Opus is Ogg-encapsulated; `audio/opus` is not a registered type.
+  opus: "audio/ogg",
 };
 
 function extOf(filename: string): string {
