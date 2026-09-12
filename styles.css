@@ -1,9 +1,12 @@
 /* Intentionally minimal for now. The rewrite will add styles only when needed. */
 
 /* Render-preview: keep ==highlight== and {{cN::body}} visually unified. */
+/* Theme-owned colours: a hardcoded light background leaves the inherited
+   (light) text unreadable in dark themes. */
 .markdown-rendered mark,
 .markdown-rendered .ff-cloze {
-  background: #fff3a8;
+  background: var(--text-highlight-bg);
+  color: var(--text-normal);
   padding: 0 0.1em;
   border-radius: 2px;
 }
@@ -31,7 +34,8 @@
 /* Live Preview surfaces inside the CM6 editor. */
 .cm-editor .ff-cloze,
 .cm-editor mark {
-  background: #fff3a8;
+  background: var(--text-highlight-bg);
+  color: var(--text-normal);
   padding: 0 0.1em;
   border-radius: 2px;
 }

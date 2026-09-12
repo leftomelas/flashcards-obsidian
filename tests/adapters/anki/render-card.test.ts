@@ -209,6 +209,18 @@ describe("getAnkiModelSpecs", () => {
   });
 });
 
+describe("renderCardForAnki — remote media", () => {
+  it("keeps a remote image as a plain <img src> instead of a vault reference", () => {
+    const out = renderCardForAnki(
+      baseCard({
+        front: "Logo ![](https://a.b/c.png)",
+      }),
+      CTX,
+    );
+    expect(out.fields.Front).toContain('src="https://a.b/c.png"');
+  });
+});
+
 describe("renderCardForAnki — reminder", () => {
   it("renders content, context, and source without an answer field", () => {
     const out = renderCardForAnki(

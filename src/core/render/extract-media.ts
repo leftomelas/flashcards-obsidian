@@ -92,7 +92,19 @@ function isExcluded(index: number, ranges: ExcludedRange[]): boolean {
   return false;
 }
 
+/**
+ * `scheme://host/…` or the protocol-relative `//host/…`. Remote targets are
+ * left untouched: they cannot be resolved against the vault, and claiming them
+ * would drop the whole card as unresolved media. Skipping them lets the
+ * Markdown renderer emit a plain `<img src="https://…">`, which Anki loads
+ * when online.
+ */
+function isRemote(target: string): boolean {
+  return /^(?:[a-z][a-z0-9+.-]*:)?\/\//i.test(target);
+}
+
 function classify(filename: string): MediaKind | null {
+  if (isRemote(filename)) return null;
   const dot = filename.lastIndexOf(".");
   if (dot < 0) return null;
   const ext = filename.slice(dot + 1).toLowerCase();

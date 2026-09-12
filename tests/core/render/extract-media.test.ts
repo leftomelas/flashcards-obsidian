@@ -99,6 +99,27 @@ describe("extractMedia", () => {
     expect(refs[0]).toMatchObject({ kind: "audio", filename: "a.opus" });
   });
 
+  it("ignores remote markdown images so they survive as plain HTML", () => {
+    expect(extractMedia("![](https://a.b/c.png)")).toEqual([]);
+    expect(extractMedia("![](http://a.b/c.png)")).toEqual([]);
+    expect(extractMedia("![alt](https://a.b/c.png)")).toEqual([]);
+    expect(extractMedia("![](https://a.b/c.mp3)")).toEqual([]);
+  });
+
+  it("ignores protocol-relative markdown images", () => {
+    expect(extractMedia("![](//a.b/c.png)")).toEqual([]);
+  });
+
+  it("ignores remote wikilink embeds", () => {
+    expect(extractMedia("![[https://a.b/c.png]]")).toEqual([]);
+  });
+
+  it("still extracts vault paths that contain a colon", () => {
+    const refs = extractMedia("![](assets/a:b.png)");
+    expect(refs).toHaveLength(1);
+    expect(refs[0]!.filename).toBe("assets/a:b.png");
+  });
+
   it("ignores wikilinks with unknown extensions", () => {
     expect(extractMedia("![[notes.txt]]")).toEqual([]);
   });
